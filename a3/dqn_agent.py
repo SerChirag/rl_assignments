@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import torch
+import random
 
 import envs.base_env as base_env
 import learning.base_agent as base_agent
@@ -122,8 +123,7 @@ class DQNAgent(base_agent.BaseAgent):
         timesteps.
         '''
 
-        # placeholder
-        prob = 1.0
+        prob = self._exp_prob_start - (self._exp_prob_start - self._exp_prob_end) * min(1.0, self._sample_count / self._exp_anneal_samples)
 
         return prob
 
@@ -137,9 +137,13 @@ class DQNAgent(base_agent.BaseAgent):
         action.
         '''
         exp_prob = self._get_exp_prob()
-
+        uniform_prob = torch.rand(qs.shape[0], device=self._device)
+        a_rand = torch.randint(0, qs.shape[1], (qs.shape[0],), device=self._device, dtype=torch.int64)       
+        a_max = torch.argmax(qs, dim=-1)
+        
+        a = torch.where(uniform_prob < exp_prob, a_rand, a_max)
         # placeholder
-        a = torch.zeros(qs.shape[0], device=self._device, dtype=torch.int64)
+        # a = torch.zeros(qs.shape[0], device=self._device, dtype=torch.int64)
         return a
     
     def _compute_tar_vals(self, r, norm_next_obs, done):
