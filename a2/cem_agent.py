@@ -101,9 +101,9 @@ class CEMAgent(base_agent.BaseAgent):
         '''
         param_size = self._param_mean.shape[0]
 
-        # placeholder
-        candidates = torch.zeros([n, param_size], device=self._device)
-        torch.normal(mean=self._param_mean.detach(), std=self._param_std.detach(), out=candidates)
+        broadcasted_mean = self._param_mean.detach().unsqueeze(0).expand(n, param_size)
+        broadcasted_std = self._param_std.detach().unsqueeze(0).expand(n, param_size)
+        candidates = torch.normal(mean=broadcasted_mean, std=broadcasted_std)
 
         return candidates
 
@@ -121,8 +121,8 @@ class CEMAgent(base_agent.BaseAgent):
         # placeholder
         rets = np.zeros(n)
         ep_lens = np.zeros(n)
-        torch.nn.utils.vector_to_parameters(candidates, self._model.parameters())
         for i in range(n):
+            torch.nn.utils.vector_to_parameters(candidates[i], self._model.parameters())
             output =  self._rollout_test(self._eps_per_candidate)
             rets[i] = output["mean_return"]
             ep_lens[i] = output["mean_ep_len"]
@@ -143,9 +143,15 @@ class CEMAgent(base_agent.BaseAgent):
         # new_std = torch.ones(param_size, device=self._device)
 
         elite_idx = np.argsort(rets)[-int(self._elite_ratio * len(rets)):]
+        # print("elite_idx", elite_idx)
         elite_params = params[elite_idx]
+
+        # print("elite_params", elite_params.shape)
         new_mean = torch.mean(elite_params, dim=0)
         new_std = torch.mean((elite_params - new_mean) ** 2, dim=0) 
         new_std = torch.clamp(new_std, min=self._min_param_std)
+
+        # print("new_mean", new_mean)
+        # print("new_std", new_std)
 
         return new_mean, new_std

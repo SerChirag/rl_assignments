@@ -123,7 +123,8 @@ class DQNAgent(base_agent.BaseAgent):
         timesteps.
         '''
 
-        prob = self._exp_prob_start - (self._exp_prob_start - self._exp_prob_end) * min(1.0, self._sample_count / self._exp_anneal_samples)
+        l = np.clip(self._sample_count * 1.0 / self._exp_anneal_samples, 0, 1)
+        prob = l * self._exp_prob_end + (1 - l) * self._exp_prob_beg
 
         return prob
 
@@ -156,10 +157,29 @@ class DQNAgent(base_agent.BaseAgent):
         The Q-function can be queried by using the method eval_q(norm_obs).
         '''
         
-        # placeholder
         tar_vals = torch.zeros_like(r)
-
+        term_2 = self._tar_model.eval_q(norm_next_obs).max(dim=1).values
+        term_2 = term_2 * self._discount
+        term_2 = term_2 * (1 - done)
+        tar_vals = r + term_2
         return tar_vals
+    
+
+        # return_t = torch.zeros_like(r)
+        # sum = 0
+        # for i in range(r.size(0)-1,-1,-1):
+        #     if done[i]:
+        #         sum = r[i] + self._tar_model.eval_q(norm_next_obs[i]).max() * self._discount 
+        #     else:
+        #         sum = r[i] + sum * self._discount 
+        #     return_t[i] = sum
+
+        # return return_t
+
+        # placeholder
+        # tar_vals = torch.zeros_like(r)
+
+        # return tar_vals
 
     def _compute_q_loss(self, norm_obs, a, tar_vals):
         '''
@@ -170,7 +190,11 @@ class DQNAgent(base_agent.BaseAgent):
         '''
         
         # placeholder
-        loss = torch.zeros(1)
+        # loss = torch.zeros(1)
+        q = self._model.eval_q(norm_obs)
+        
+        q_a = torch.gather(q, 1, a).squeeze()
+        loss = torch.mean((tar_vals - q_a)**2)
         
         return loss
     
@@ -181,5 +205,7 @@ class DQNAgent(base_agent.BaseAgent):
         HINT: self._model.parameters() can be used to retrieve a list of tensors containing
         the parameters of a model.
         '''
-        
+
+        self._tar_model.load_state_dict(self._model.state_dict())
+
         return
